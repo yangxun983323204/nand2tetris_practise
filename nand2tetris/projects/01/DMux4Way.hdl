@@ -17,4 +17,13 @@ CHIP DMux4Way {
 
     PARTS:
     // Put your code here:
+    // tips: array 'sel' is LSB
+    DMux(in=in,sel=sel[0],a=ta,b=tb);
+    Not(in=sel[1],out=nSel1);
+    // 0X
+    And(a=ta,b=nSel1,out=a);
+    And(a=tb,b=nSel1,out=b);
+    // 1X
+    And(a=ta,b=sel[1],out=c);
+    And(a=tb,b=sel[1],out=d);
 }

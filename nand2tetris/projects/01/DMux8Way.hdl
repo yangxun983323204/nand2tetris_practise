@@ -17,4 +17,26 @@ CHIP DMux8Way {
 
     PARTS:
     // Put your code here:
+    // tips: array 'sel' is LSB
+    DMux(in=in,sel=sel[0],a=ta,b=tb);
+
+    Not(in=sel[0],out=nSel0);
+    Not(in=sel[1],out=nSel1);
+    Not(in=sel[2],out=nSel2);
+    // 00x
+    And(a=nSel1,b=nSel2,out=c1);
+    And(a=c1,b=ta,out=a);
+    And(a=c1,b=tb,out=b);
+    // 01x
+    And(a=nSel2,b=sel[1],out=c2);
+    And(a=c2,b=ta,out=c);
+    And(a=c2,b=tb,out=d);
+    // 10x
+    And(a=sel[2],b=nSel1,out=c3);
+    And(a=c3,b=ta,out=e);
+    And(a=c3,b=tb,out=f);
+    // 11x
+    And(a=sel[2],b=sel[1],out=c4);
+    And(a=c4,b=ta,out=g);
+    And(a=c4,b=tb,out=h);
 }

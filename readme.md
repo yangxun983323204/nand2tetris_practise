@@ -22,7 +22,10 @@ CHIP DMux {
     And(a=in,b=nsel,out=a);
     And(a=in,b=sel,out=b);
 }
-```
+```  
+
+注意在硬件模拟器中，数组是低位在前，例如：  
+`值0x001,在数组中是[1][0][0]`
 
 ![逻辑运算法则](./img/bool_op.png)  
 ![逻辑运算基本定理](./img/bool_law.png)  
