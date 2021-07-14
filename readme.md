@@ -29,3 +29,6 @@ CHIP DMux {
 
 ![逻辑运算法则](./img/bool_op.png)  
 ![逻辑运算基本定理](./img/bool_law.png)  
+
+### 第二章  
+最重要是注意附录A对HDL语法的说明，A.5.2和A.5.3。其中说明的输入管脚也可以是常量true或false,并且可以x[i..j]=true的方式批量对多位赋值。
