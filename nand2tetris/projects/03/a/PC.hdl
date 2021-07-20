@@ -17,4 +17,25 @@ CHIP PC {
 
     PARTS:
     // Put your code here:
+    // load when reset\load\inc
+    Or(a=load,b=reset,out=load0);
+    Or(a=load0,b=inc,out=load1);
+
+    Register(in=fPre,load=load1,out=pre,out=out);
+    // if reset
+    Mux16(a=pre,b[0..15]=false,sel=reset,out=resetOut);
+    // if load
+    Not(in=reset,out=nreset);
+    And(a=nreset,b=load,out=fLoad);
+    Mux16(a=resetOut,b=in,sel=fLoad,out=loadOut);
+    // if inc
+    Not(in=load,out=nload);
+    And(a=nreset,b=nload,out=nrl);
+    And(a=nrl,b=inc,out=fInc);
+    Inc16(in=loadOut,out=incOutT);
+    Mux16(a=loadOut,b=incOutT,sel=fInc,out=incOut);
+    // else
+    Not(in=inc,out=ninc);
+    And(a=nrl,b=ninc,out=else);
+    Mux16(a=incOut,b=pre,sel=else,out=fPre);
 }
