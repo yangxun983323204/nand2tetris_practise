@@ -9,7 +9,8 @@
 
 ### 第一章  
 需要逻辑代数基本知识，并结合书中布尔代数一节的规范表示法来推导：  
-例如：`$dmux=(in*\overline{sel},in*sel)$`  
+例如：  
+<img src="https://latex.codecogs.com/svg.latex?dmux=(in*\overline{sel},in*sel)" />  
 因此它的代码是：  
 ``` hdl  
 CHIP DMux {
