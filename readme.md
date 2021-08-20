@@ -43,4 +43,8 @@ ALU的逻辑实现比想像中简单，因为书里给出的ALU已经是精心�
 例如`DFF(in=in,out=loop,out=out);`，DFF的out同时连到了一个内部管脚loop和输出管脚out。如果直接用输出管脚去连接到其它调用芯片的输入管脚是会报错的。前面的章节因为我不知道这个，还绕了些弯去解决。  
 RAM8思路：用DMux8Way把load信号分解成8路信号，用来控制8个Register读写，然后用Mux8Way16选择Register的8路输出其中一路。  
 RAM16思路：address是6位，高3位用在RAM16本身，用于分解load信号到8路，控制8个RAM8读写；低3位传入RAM8用于RAM8的内部选择逻辑。   
-PC芯片确实有点复杂，思路是：Register在reset\load\inc时，都是需要读入数据的，并且我们应结合控制位为它构造合适的数据。reset优先级最高，其次是!reset&load，再次是!reset&!load&inc，最低是!reset&!load&!inc 
+PC芯片确实有点复杂，思路是：Register在`reset\load\inc`时，都是需要读入数据的，并且我们应结合控制位为它构造合适的数据。`reset`优先级最高，其次是`!reset&load`，再次是`!reset&!load&inc`，最低是`!reset&!load&!inc`  
+
+### 第四章  
+这一章对程序员比较友好，只用考虑语法，不用考虑的电路和电压。  
+汇编实现乘法比较简单，只需注意一点：`@val`语法，如果`val`是一个用户变量的话，它实际是一个从16开始的数。含义是`RAM`中一个可寻址单元的地址（按声明顺序递增，另外0~15的是虚拟寄存器）。`@val`是把`val`所代表的数写入`A`寄存器，用`A`去访问的话是数值本身，用`M`去访问的话，是`RAM[val]`的值。  
