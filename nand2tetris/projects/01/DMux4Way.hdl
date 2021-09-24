@@ -17,7 +17,7 @@ CHIP DMux4Way {
 
     PARTS:
     // Put your code here:
-    // tips: array 'sel' is LSB
+    // 管脚高位在前
     DMux(in=in,sel=sel[0],a=ta,b=tb);
     Not(in=sel[1],out=nSel1);
     // 0X

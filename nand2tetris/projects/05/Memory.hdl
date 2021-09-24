@@ -28,4 +28,24 @@ CHIP Memory {
 
     PARTS:
     // Put your code here:
+    // RAM、Screen、Keyboard的地址起止依次如下(小端):
+
+    // 000,0000,0000,0000
+    // 011,1111,1111,1111
+
+    // 100,0000,0000,0000
+    // 101,1111,1111,1111
+
+    // 110,0000,0000,0000
+
+    // 因此判读地址的第13和14位就可以判断是对RAM、Screen还是Keyborad操作
+    // 附录中有写，w位管脚的每个位从右至左为0...w-1,是高位在前的，因此传入address[13..14]实际上位顺序会交换的
+    DMux4Way(in=load,sel=address[13..14],a=isRAM1,b=isRAM2,c=isScreen,d=isKBD);
+    Or(a=isRAM1,b=isRAM2,out=isRAM);
+
+    RAM16K(in=in,load=isRAM,address=address[0..13],out=outRam);
+    Screen(in=in,load=isScreen,address=address[0..12],out=outScrn);
+    Keyboard(out=outKbd);
+
+    Mux4Way16(a=outRam,b=outRam,c=outScrn,d=outKbd,sel=address[13..14],out=out);
 }
