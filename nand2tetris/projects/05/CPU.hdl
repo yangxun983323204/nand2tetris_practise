@@ -40,4 +40,21 @@ CHIP CPU {
 
     PARTS:
     // Put your code here:
+
+    // A寄存器
+    // A寄存器有两种赋值来源：A指令和C指令
+    Mux16(a=inM,b=outMLoop,sel=instruction[15],out=inA);
+    // A寄存器写入：1、A指令 2、C指令指明了写入A寄存器
+    Or(a=instruction[15],b=instruction[5],out=loadA);
+    Register(in=inA,load=loadA,out=outA);
+
+    // D寄存器
+    // D寄存器有几种赋值语句，但都是通过C指令，因此都是outM
+    // D寄存器写入：C指令指明了写入D寄存器
+    And(a=instruction[15],b=instruction[4],out=loadD);
+    Register(in=outMLoop,load=loadD,out=outD);
+
+    // ALU
+    // 需要解码出控制位：zx,nx,zy,ny,f,no
+    ALU(x=outD,y=outA,zx=0,nx=0,zy=0,ny=0,f=0,no=0,out=outMLoop,out=outM,zr=outZR,ng=outNG);
 }
