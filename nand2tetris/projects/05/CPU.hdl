@@ -41,20 +41,52 @@ CHIP CPU {
     PARTS:
     // Put your code here:
 
-    // A寄存器
+    // [A寄存器]
     // A寄存器有两种赋值来源：A指令和C指令
-    Mux16(a=inM,b=outMLoop,sel=instruction[15],out=inA);
+    Mux16(a=instruction,b=outMLoop,sel=instruction[15],out=inA);
     // A寄存器写入：1、A指令 2、C指令指明了写入A寄存器
-    Or(a=instruction[15],b=instruction[5],out=loadA);
-    Register(in=inA,load=loadA,out=outA);
+    Not(in=instruction[15], out=isA);
+    Or(a=isA,b=instruction[5],out=loadA);
+    ARegister(in=inA,load=loadA,out=outA,out[0..14]=addressM);
 
-    // D寄存器
+    // [D寄存器]
     // D寄存器有几种赋值语句，但都是通过C指令，因此都是outM
     // D寄存器写入：C指令指明了写入D寄存器
     And(a=instruction[15],b=instruction[4],out=loadD);
-    Register(in=outMLoop,load=loadD,out=outD);
+    DRegister(in=outMLoop,load=loadD,out=outD);
 
-    // ALU
+    // [ALU]
+    // 最复杂的部分实际指令里已经精心设计好了，指令的各个位域刚好对应ALU各功能的控制位
     // 需要解码出控制位：zx,nx,zy,ny,f,no
-    ALU(x=outD,y=outA,zx=0,nx=0,zy=0,ny=0,f=0,no=0,out=outMLoop,out=outM,zr=outZR,ng=outNG);
+    // a=instruction[12]
+    // c1..c6=instruction[11]..instruction[6]
+    // d1..c3=instruction[5]..instruction[3]
+    // j1..j3=instruction[2]..instruction[0]
+    // 控制outA还是inM输入ALU
+    Mux16(a=outA, b=inM, sel=instruction[12], out=outAM);
+    ALU(x=outD, y=outAM, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=outMLoop, out=outM, zr=outZR, ng=outNG);
+
+    // [writeM]
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    // [PC]
+    // j1,j2,j3的8种组合，结合ALU输出的zr,ng
+    // 注意outNG是小于，不是小于等于
+    // !=
+    Not(in=outZR, out=outNE);
+    // >=
+    Not(in=outNG, out=outGE);
+    // >
+    And(a=outNE, b=outGE, out=outGT);
+
+    And(a=outNG, b=instruction[2], out=j1);
+    And(a=outZR, b=instruction[1], out=j2);
+    And(a=outGT, b=instruction[0], out=j3);
+
+    Or(a=j1, b=j2, out=j12);
+    Or(a=j12, b=j3, out=tJmp);
+    And(a=tJmp, b=instruction[15], out=jmp);
+    Not(in=jmp, out=nJmp);
+
+    PC(in=outA, load=jmp, inc=nJmp, reset=reset, out[0..14]=pc);
 }
