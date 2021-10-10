@@ -16,7 +16,7 @@ class Parser():
     def __init__(self, asmPath):
         super(Parser, self).__init__()
         self._file = open(asmPath,mode='r',encoding='utf-8')
-        self._lineCnt = -1;
+        self._lineCnt = -1
 
     def hasMoreCommands(self):
         if self._file == None:
@@ -112,6 +112,45 @@ class Parser():
         else:
             return None
 
+class Code():
+    _destDict = {
+        'null':0,
+        'M':0b1,
+        'D':0b10,
+        'MD':0b11,
+        'A':0b100,
+        'AM':0b101,
+        'AD':0b110,
+        'AMD':0b111
+    }
+
+    _compDict = {}
+
+    _jumpDict = {
+        'null':0,
+        'JGT':0b1,
+        'JEQ':0b10,
+        'JGE':0b11,
+        'JLT':0b100,
+        'JNE':0b101,
+        'JLE':0b110,
+        'JMP':0b111
+    }
+
+    @classmethod
+    def dest(cls,name):
+        """3 bits"""
+        pass
+
+    @classmethod
+    def comp(cls,name):
+        """7 bits"""
+        pass
+
+    @classmethod
+    def jump(cls,name):
+        """3 bits"""
+        pass
 
 
 def main():
