@@ -46,6 +46,10 @@ class Parser():
     def advance(self):
         rawline = self._file.readline()
         self._lineCnt+=1
+        commentIdx = rawline.find("//")
+        if commentIdx >= 0:
+            rawline = rawline[:commentIdx]
+
         self._currLine = rawline.strip().replace(' ','')
         print('当前行内容为:'+self._currLine)
 
@@ -124,7 +128,36 @@ class Code():
         'AMD':0b111
     }
 
-    _compDict = {}
+    _compDict = {
+        '0'  :0b0101010,
+        '1'  :0b0111111,
+        '-1' :0b0111010,
+        'D'  :0b0001100,
+        'A'  :0b0110000,
+        '!D' :0b0001111,
+        '!A' :0b0110001,
+        '-D' :0b0001111,
+        '-A' :0b0110011,
+        'D+1':0b0011111,
+        'A+1':0b0110111,
+        'D-1':0b0001110,
+        'A-1':0b0110010,
+        'D+A':0b0000010,
+        'D-A':0b0010011,
+        'A-D':0b0000111,
+        'D&A':0b0000000,
+        'D|A':0b0010101,
+        'M'  :0b1110000,
+        '!M' :0b1110001,
+        '-M' :0b1110011,
+        'M+1':0b1110111,
+        'M-1':0b1110010,
+        'D+M':0b1000010,
+        'D-M':0b1010011,
+        'M-D':0b1000111,
+        'D&M':0b1000000,
+        'D|M':0b1010101
+    }
 
     _jumpDict = {
         'null':0,
@@ -140,23 +173,68 @@ class Code():
     @classmethod
     def dest(cls,name):
         """3 bits"""
-        pass
+        return cls._destDict[name]
 
     @classmethod
     def comp(cls,name):
         """7 bits"""
-        pass
+        return cls._compDict[name]
 
     @classmethod
     def jump(cls,name):
         """3 bits"""
-        pass
+        return cls._jumpDict[name]
+
+
+class SymbolTable():
+    """符号表"""
+    def __init__(self):
+        self._dict = {}
+        # 加入预定义符号
+        self._dict['SP'] = 0
+        self._dict['LCL'] = 1
+        self._dict['ARG'] = 2
+        self._dict['THIS'] = 3
+        self._dict['THAT'] = 4
+        for i in range(16):
+            self._dict['R'+str(i)] = i
+        
+        self._dict['SCREEN'] = 16384
+        self._dict['KBD'] = 24576
+
+    def addEntry(self,symbol,address):
+        self._dict[symbol] = address
+
+    def contains(self,symbol):
+        return symbol in self._dict
+
+    def GetAddress(self,symbol):
+        return self._dict[symbol]
 
 
 def main():
     inputPath = sys.argv[1]
     print('输入文件为:{0}'.format(inputPath))
+    outputPath = inputPath.replace('.asm','_yx.hack')
+    # 第一遍，收集符号
+    print('========第一遍，收集符号========')
+    address = 0
+    tbl = SymbolTable()
     parser = Parser(inputPath)
+    while parser.hasMoreCommands():
+        parser.advance()
+        if parser.commandType() == Parser.L_COMMAND:
+            symbol = parser.symbol()
+            if not tbl.contains(symbol):
+                tbl.addEntry(symbol,address)
+                print('收集到符号:{0}={1}'.format(symbol,address))
+        else:
+            address+=1
+    # 第二遍，汇编
+    print('========第二遍，汇编========')
+    valAddress = 16
+    parser = Parser(inputPath)
+    output = open(outputPath,mode='w',encoding='utf-8')
     while parser.hasMoreCommands():
         parser.advance()
         t = Parser.COMMADN_NAME[parser.commandType()]
@@ -165,5 +243,26 @@ def main():
         c = parser.comp()
         j = parser.jump()
         print('type:{0},symbol:{1},dest:{2},comp:{3},jump:{4}'.format(t,s,d,c,j))
+        if t == Parser.COMMADN_NAME[Parser.A_COMMAND]:
+            isSymbol = tbl.contains(s)
+            if isSymbol:
+                addr = '{0:b}'.format(tbl.GetAddress(s)).zfill(16)
+            elif not s.isnumeric():
+                tbl.addEntry(s,valAddress)
+                addr = '{0:b}'.format(valAddress).zfill(16)
+                valAddress += 1
+            else:
+                addr = '{0:b}'.format(int(s)).zfill(16)
+
+            print('symbol address:'+addr)
+            output.write(addr+'\n')
+        elif t == Parser.COMMADN_NAME[Parser.C_COMMAND]:
+            destCode = '{0:b}'.format(Code.dest(d)).zfill(3)
+            compCode = '{0:b}'.format(Code.comp(c)).zfill(7)
+            jumpCode = '{0:b}'.format(Code.jump(j)).zfill(3)
+            print('dest code:{0},comp code:{1},jump code:{2}'.format(destCode,compCode,jumpCode))
+            output.write('111'+compCode+destCode+jumpCode+'\n')
+
+    output.close()
 
 main()
