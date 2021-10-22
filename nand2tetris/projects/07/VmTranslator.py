@@ -126,24 +126,26 @@ class CodeWriter():
                 self.__asmCmd('D=A-D','eq')
                 self.__vmIfD('JEQ')
             elif command == 'gt':
-                self.__asmCmd('D=A-D','eq')
+                self.__asmCmd('D=A-D','gt')
                 self.__vmIfD('JGT')
                 pass
             elif command == 'lt':
-                self.__asmCmd('D=A-D','eq')
+                self.__asmCmd('D=A-D','lt')
                 self.__vmIfD('JLT')
                 pass
             elif command == 'and':
-                self.__asmCmd('D=D&A')
+                self.__asmCmd('D=D&A','and')
             elif command == 'or':
-                self.__asmCmd('D=D|A')
+                self.__asmCmd('D=D|A','or')
             else:
                 raise Exception('未识别的第{0}个vm指令:{1}'.format(self._vmCmdCnt,command))
         else:
             if command == 'neg':
-                self.__asmCmd('D=-D')
+                self.__asmCmd('D=-D','neg')
+            elif command == 'not':
+                self.__asmCmd('D=!D','not')
             else:
-                self.__asmCmd('D=!D')
+                raise Exception('未识别的第{0}个vm指令:{1}'.format(self._vmCmdCnt,command))
         
         self.__vmStackPushD() # 把运算结果从D入栈
         self._vmCmdCnt += 1
