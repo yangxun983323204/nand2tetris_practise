@@ -102,96 +102,145 @@ class CodeWriter():
 
     def __init__(self,path):
         self._file = open(path,mode='w',encoding='utf-8')
+        self._asm = []
+        self._currLineNum = 0
+        self._vmCmdCnt=0
 
     def setFileName(self,filename):
         self._currVMName = Path(filename).stem
-        self._file.write("\\\\===={0}====\n".format(filename))
+        self.__asmComment("file:{0}".format(filename))
 
     def writeArithmetic(self,command):
-        # add,sub,eq,gt,lt,and,or 是出栈两个
-        # neg,not 是出栈一个
-        asm = [self.__comment(command)]
-        asm.extend(self.__vmStackPopD())
+        # add,sub,eq,gt,lt,and,or 是出栈两个操作数到D、A
+        # neg,not 是出栈一个操作数到D
+        # 所有操作都把结果保存在D寄存器，并最终压入栈
+        self.__asmComment("vm cmd:"+command)
+        self.__vmStackPopD()
         if command in ['add','sub','eq','gt','lt','and','or']:
-            asm.extend(self.__vmStackMapM())
+            self.__vmStackPopA()
             if command == 'add':
-                asm.append('D=D+M')
+                self.__asmCmd('D=D+A','add')
             elif command == 'sub':
-                asm.append('D=M-D')
+                self.__asmCmd('D=A-D','sub')
+            elif command == 'eq':
+                self.__asmCmd('D=A-D','eq')
+                self.__vmIfD('JEQ')
+            elif command == 'gt':
+                self.__asmCmd('D=A-D','eq')
+                self.__vmIfD('JGT')
+                pass
+            elif command == 'lt':
+                self.__asmCmd('D=A-D','eq')
+                self.__vmIfD('JLT')
+                pass
+            elif command == 'and':
+                self.__asmCmd('D=D&A')
+            elif command == 'or':
+                self.__asmCmd('D=D|A')
             else:
-                asm.append(command + ' 未实现')
-
-
-            asm.extend(self.__vmStackDec()) # 上面调用了__vmStackMapM并未出栈，这里在运算完成后，把操作数出栈
+                raise Exception('未识别的第{0}个vm指令:{1}'.format(self._vmCmdCnt,command))
         else:
             if command == 'neg':
-                asm.append('D=-D')
+                self.__asmCmd('D=-D')
             else:
-                asm.append('D=!D')
+                self.__asmCmd('D=!D')
         
-        asm.extend(self.__vmStackPushD()) # 把运算结果从D入栈
-        self.__writeAsmList(asm)
+        self.__vmStackPushD() # 把运算结果从D入栈
+        self._vmCmdCnt += 1
 
     def writePushPop(self,commandType,segment,index):
         if commandType == Parser.C_PUSH:
-            asm = "push 未实现\n"
+            self.__asmComment("vm cmd:push 未实现")
+        elif commandType == Parser.C_POP:
+            self.__asmComment("vm cmd:pop 未实现")
         else:
-            asm = "pop 未实现\n"
+            raise Exception('未识别的第{0}个vm指令:{1}'.format(self._vmCmdCnt,commandType))
 
-        self._file.write(asm)
+        self._vmCmdCnt += 1
 
     def close(self):
+        self.__flush()
         self._file.close()
 
     def __vmStackPopD(self):
         '''把栈顶弹出到D寄存器'''
-        asm = []
-        asm.append(self.__comment('开始：把栈顶弹出到D寄存器'))
-        asm.append('@SP')
-        asm.append('A=M')
-        asm.append('D=M')
-        asm.extend(self.__vmStackDec())
-        asm.append(self.__comment('完成：把栈顶弹出到D寄存器'))
-        return asm
-
-    def __vmStackMapM(self):
-        '''使M指向栈顶'''
-        asm = []
-        asm.append('@SP')
-        asm.append('A=M')
-        return asm
+        self.__asmCmd('@SP','begin:pop to D')
+        self.__asmCmd('A=M')
+        self.__asmCmd('D=M')
+        self.__vmStackDec()
+        self.__asmInlineComment('end:pop to D')
 
     def __vmStackPushD(self):
         '''把D寄存器值压入栈中'''
-        asm = []
-        asm.append(self.__comment('开始：把D寄存器值压入栈中'))
-        asm.extend(self.__vmStackInc())
-        asm.append('A=M')
-        asm.append('M=D')
-        asm.append(self.__comment('完成：把D寄存器值压入栈中'))
-        return asm
+        self.__vmStackInc()
+        self.__asmInlineComment('begin:push D',-2)
+        self.__asmCmd('A=M')
+        self.__asmCmd('M=D')
+        self.__asmInlineComment('end:push D')
+
+    def __vmStackPopA(self):
+        '''把栈顶弹出到A寄存器。请尽快使用，因为A寄存器很容易被修改'''
+        self.__asmCmd('@SP','begin:pop A')
+        self.__asmCmd('A=M')
+        self.__asmCmd('A=M')
+        self.__vmStackDec()
+        self.__asmInlineComment('end:pop A')
+
+    # 没有__vmStackPushA方法，因为写内存会先使用A寄存器
 
     def __vmStackDec(self):
         '''栈-1'''
-        asm = []
-        asm.append('@SP')
-        asm.append('M=M-1')
-        return asm
+        self.__asmCmd('@SP')
+        self.__asmCmd('M=M-1')
 
     def __vmStackInc(self):
         '''栈+1'''
-        asm = []
-        asm.append('@SP')
-        asm.append('M=M+1')
-        return asm 
+        self.__asmCmd('@SP')
+        self.__asmCmd('M=M+1')
     
-    def __comment(self,str):
-        return '\\\\ '+str
+    def __vmIfD(self,jmpCode):
+        '''对D寄存器作if判断'''
+        self.__asmCmd('A='+self.__asmGetAutoLabel('IF_TRUE',5))# IF_TRUE在此后第5条指令
+        self.__asmCmd('D;{0}'.format(jmpCode))
+        self.__asmCmd('D=1')# False
+        self.__asmCmd('A='+self.__asmGetAutoLabel('IF_END',3))# IF_END在此后第3条指令
+        self.__asmCmd('0;JMP')
+        self.__asmAutoLabel('IF_TRUE')
+        self.__asmCmd('D=-1')# True
+        self.__asmAutoLabel('IF_END')
 
-    def __writeAsmList(self,asms):
-        for line in asms:
+    def __asmCmd(self,cmd,comment=None):
+        '''写入一条指令，可以传入comment字段，将在当前行添加注释'''
+        self._asm.append(cmd)
+        self._currLineNum += 1
+        if comment!=None:
+            self.__asmInlineComment(comment)
+
+    def __asmAutoLabel(self,name):
+        '''写入一条自动标签，自动标签后面带有指令行数，以避免重复'''
+        self._asm.append('(LABEL_AUTO_{0}_{1})'.format(name,self._currLineNum))
+
+    def __asmGetAutoLabel(self,name,offset):
+        '''获取自动标签，offset用来指定相对当前指令的偏移'''
+        return 'LABEL_AUTO_{0}_{1}'.format(name,self._currLineNum+offset)
+
+    def __asmComment(self,text):
+        '''写入一条注释'''
+        self._asm.append('\\\\ '+text)
+
+    def __asmInlineComment(self,text,idx=-1):
+        '''给指定行后添加内注释'''
+        if '\\\\' in self._asm[idx]:
+            self._asm[idx] += ' '+text
+        else:
+            self._asm[idx] = self._asm[idx].ljust(35) + '\\\\ '+text
+
+    def __flush(self):
+        for line in self._asm:
             self._file.write(line)
             self._file.write('\n')
+        
+        self._asm = []
 
 def main():
     inputPath = sys.argv[1]
