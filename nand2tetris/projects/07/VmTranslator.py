@@ -111,34 +111,34 @@ class CodeWriter():
         self.__asmComment("file:{0}".format(filename))
 
     def writeArithmetic(self,command):
-        # add,sub,eq,gt,lt,and,or 是出栈两个操作数到D、A
+        # add,sub,eq,gt,lt,and,or 是出栈两个操作数,一个到D、另一个使用M，并在操作完成后出栈
         # neg,not 是出栈一个操作数到D
         # 所有操作都把结果保存在D寄存器，并最终压入栈
         self.__asmComment("vm cmd:"+command)
         self.__vmStackPopD()
         if command in ['add','sub','eq','gt','lt','and','or']:
-            self.__vmStackPopA()
+            self.__vmStackMapM()
             if command == 'add':
-                self.__asmCmd('D=D+A','add')
+                self.__asmCmd('D=D+M','add')
             elif command == 'sub':
-                self.__asmCmd('D=A-D','sub')
+                self.__asmCmd('D=M-D','sub')
             elif command == 'eq':
-                self.__asmCmd('D=A-D','eq')
+                self.__asmCmd('D=M-D','eq')
                 self.__vmIfD('JEQ')
             elif command == 'gt':
-                self.__asmCmd('D=A-D','gt')
+                self.__asmCmd('D=M-D','gt')
                 self.__vmIfD('JGT')
-                pass
             elif command == 'lt':
-                self.__asmCmd('D=A-D','lt')
+                self.__asmCmd('D=M-D','lt')
                 self.__vmIfD('JLT')
-                pass
             elif command == 'and':
-                self.__asmCmd('D=D&A','and')
+                self.__asmCmd('D=D&M','and')
             elif command == 'or':
-                self.__asmCmd('D=D|A','or')
+                self.__asmCmd('D=D|M','or')
             else:
                 raise Exception('未识别的第{0}个vm指令:{1}'.format(self._vmCmdCnt,command))
+
+            self.__vmStackDec()
         else:
             if command == 'neg':
                 self.__asmCmd('D=-D','neg')
@@ -152,11 +152,16 @@ class CodeWriter():
 
     def writePushPop(self,commandType,segment,index):
         if commandType == Parser.C_PUSH:
-            self.__asmComment("vm cmd:push 未实现")
+            self.__asmComment("vm cmd:{0} {1} {2}".format('push',segment,index))
+            if segment == 'constant':
+                self.__vmPushConstant(index)
+            else:
+                self.__asmComment("vm cmd:{0} {1} {2} 未实现".format(commandType,segment,index))
         elif commandType == Parser.C_POP:
+            self.__asmComment("vm cmd:{0} {1} {2}".format('pop',segment,index))
             self.__asmComment("vm cmd:pop 未实现")
         else:
-            raise Exception('未识别的第{0}个vm指令:{1}'.format(self._vmCmdCnt,commandType))
+            raise Exception('未识别的第{0}个vm指令:{1} {2} {3}'.format(self._vmCmdCnt,commandType,segment,index))
 
         self._vmCmdCnt += 1
 
@@ -164,31 +169,29 @@ class CodeWriter():
         self.__flush()
         self._file.close()
 
+    # 栈指针应始终指向栈顶元素的下一个，即栈指针应指向写入位置
+
     def __vmStackPopD(self):
         '''把栈顶弹出到D寄存器'''
-        self.__asmCmd('@SP','begin:pop to D')
+        self.__vmStackDec()
+        self.__asmInlineComment('[begin]:pop stack to D',-2)
         self.__asmCmd('A=M')
         self.__asmCmd('D=M')
-        self.__vmStackDec()
-        self.__asmInlineComment('end:pop to D')
+        self.__asmInlineComment('[end]:pop stack to D')
 
     def __vmStackPushD(self):
         '''把D寄存器值压入栈中'''
-        self.__vmStackInc()
-        self.__asmInlineComment('begin:push D',-2)
+        self.__asmCmd('@SP','[begin]:push D to stack')
         self.__asmCmd('A=M')
         self.__asmCmd('M=D')
-        self.__asmInlineComment('end:push D')
+        self.__vmStackInc()
+        self.__asmInlineComment('[end]:push D to stack')
 
-    def __vmStackPopA(self):
-        '''把栈顶弹出到A寄存器。请尽快使用，因为A寄存器很容易被修改'''
-        self.__asmCmd('@SP','begin:pop A')
+    def __vmStackMapM(self):
+        '''使M等于栈顶元素，也即A寄存器的地址指向SP-1'''
+        self.__asmCmd('@SP')
         self.__asmCmd('A=M')
-        self.__asmCmd('A=M')
-        self.__vmStackDec()
-        self.__asmInlineComment('end:pop A')
-
-    # 没有__vmStackPushA方法，因为写内存会先使用A寄存器
+        self.__asmCmd('A=A-1')
 
     def __vmStackDec(self):
         '''栈-1'''
@@ -211,6 +214,12 @@ class CodeWriter():
         self.__asmCmd('D=-1')# True
         self.__asmAutoLabel('IF_END')
 
+    def __vmPushConstant(self,val):
+        '''将常量压入栈中'''
+        self.__asmCmd('@{0}'.format(val))
+        self.__asmCmd('D=A')
+        self.__vmStackPushD()
+
     def __asmCmd(self,cmd,comment=None):
         '''写入一条指令，可以传入comment字段，将在当前行添加注释'''
         self._asm.append(cmd)
@@ -228,14 +237,14 @@ class CodeWriter():
 
     def __asmComment(self,text):
         '''写入一条注释'''
-        self._asm.append('\\\\ '+text)
+        self._asm.append('// '+text)
 
     def __asmInlineComment(self,text,idx=-1):
         '''给指定行后添加内注释'''
-        if '\\\\' in self._asm[idx]:
+        if '//' in self._asm[idx]:
             self._asm[idx] += ' '+text
         else:
-            self._asm[idx] = self._asm[idx].ljust(35) + '\\\\ '+text
+            self._asm[idx] = self._asm[idx].ljust(35) + '// '+text
 
     def __flush(self):
         for line in self._asm:
