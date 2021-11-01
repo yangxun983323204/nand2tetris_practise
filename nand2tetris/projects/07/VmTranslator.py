@@ -205,10 +205,10 @@ class CodeWriter():
     
     def __vmIfD(self,jmpCode):
         '''对D寄存器作if判断'''
-        self.__asmCmd('A='+self.__asmGetAutoLabel('IF_TRUE',5))# IF_TRUE在此后第5条指令
+        self.__asmCmd('@'+self.__asmGetAutoLabel('IF_TRUE',5))# IF_TRUE在此后第5条指令
         self.__asmCmd('D;{0}'.format(jmpCode))
-        self.__asmCmd('D=1')# False
-        self.__asmCmd('A='+self.__asmGetAutoLabel('IF_END',3))# IF_END在此后第3条指令
+        self.__asmCmd('D=0')# False
+        self.__asmCmd('@'+self.__asmGetAutoLabel('IF_END',3))# IF_END在此后第3条指令
         self.__asmCmd('0;JMP')
         self.__asmAutoLabel('IF_TRUE')
         self.__asmCmd('D=-1')# True
