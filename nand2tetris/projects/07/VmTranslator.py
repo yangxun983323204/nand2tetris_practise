@@ -115,7 +115,7 @@ class CodeWriter():
         # neg,not 是出栈一个操作数到D
         # 所有操作都把结果保存在D寄存器，并最终压入栈
         self.__asmComment("vm cmd:"+command)
-        self.__vmStackPopD()
+        self.__vmStackPopToD()
         if command in ['add','sub','eq','gt','lt','and','or']:
             self.__vmStackMapM()
             if command == 'add':
@@ -147,19 +147,33 @@ class CodeWriter():
             else:
                 raise Exception('未识别的第{0}个vm指令:{1}'.format(self._vmCmdCnt,command))
         
-        self.__vmStackPushD() # 把运算结果从D入栈
+        self.__vmStackPushFromD() # 把运算结果从D入栈
         self._vmCmdCnt += 1
 
     def writePushPop(self,commandType,segment,index):
         if commandType == Parser.C_PUSH:
             self.__asmComment("vm cmd:{0} {1} {2}".format('push',segment,index))
             if segment == 'constant':
-                self.__vmPushConstant(index)
+                self.__vmStackPushFromConstant(index)
+            elif segment in ['local','argument','this','that']:
+                self.__vmStackPushFromSegment(segment,index)
+            elif segment in ['pointer','temp']:
+                self.__vmStackPushFromPointer(segment,index)
+            elif segment == 'static':
+                self.__vmStackPushFromStatic(index)
             else:
                 self.__asmComment("vm cmd:{0} {1} {2} 未实现".format(commandType,segment,index))
         elif commandType == Parser.C_POP:
             self.__asmComment("vm cmd:{0} {1} {2}".format('pop',segment,index))
-            self.__asmComment("vm cmd:pop 未实现")
+            #constant不接受数据弹栈
+            if segment in ['local','argument','this','that']:
+                self.__vmStackPopToSegment(segment,index)
+            elif segment in ['pointer','temp']:
+                self.__vmStackPopToPointer(segment,index)
+            elif segment == 'static':
+                self.__vmStackPopToStatic(index)
+            else:
+                self.__asmComment("vm cmd:{0} {1} {2} 未实现".format(commandType,segment,index))
         else:
             raise Exception('未识别的第{0}个vm指令:{1} {2} {3}'.format(self._vmCmdCnt,commandType,segment,index))
 
@@ -171,7 +185,7 @@ class CodeWriter():
 
     # 栈指针应始终指向栈顶元素的下一个，即栈指针应指向写入位置
 
-    def __vmStackPopD(self):
+    def __vmStackPopToD(self):
         '''把栈顶弹出到D寄存器'''
         self.__vmStackDec()
         self.__asmInlineComment('[begin]:pop stack to D',-2)
@@ -179,7 +193,7 @@ class CodeWriter():
         self.__asmCmd('D=M')
         self.__asmInlineComment('[end]:pop stack to D')
 
-    def __vmStackPushD(self):
+    def __vmStackPushFromD(self):
         '''把D寄存器值压入栈中'''
         self.__asmCmd('@SP','[begin]:push D to stack')
         self.__asmCmd('A=M')
@@ -214,11 +228,89 @@ class CodeWriter():
         self.__asmCmd('D=-1')# True
         self.__asmAutoLabel('IF_END')
 
-    def __vmPushConstant(self,val):
+    def __vmStackPushFromConstant(self,val):
         '''将常量压入栈中'''
         self.__asmCmd('@{0}'.format(val))
         self.__asmCmd('D=A')
-        self.__vmStackPushD()
+        self.__vmStackPushFromD()
+
+    __vmSegmentReg = {
+        'local':'LCL',
+        'argument':'ARG',
+        'this':'THIS',
+        'that':'THAT'
+    }
+
+    def __vmStackPushFromSegment(self,segment,index):
+        '''从以下内存段取数据压栈:local,argument,this,that'''
+        reg = CodeWriter.__vmSegmentReg[segment]
+        self.__asmCmd('@'+reg)
+        self.__asmCmd('D=M')
+        self.__asmCmd('@'+str(index))
+        self.__asmCmd('A=D+A')
+        self.__asmCmd('D=M')
+        self.__vmStackPushFromD()
+
+    def __vmStackPopToSegment(self,segment,index):
+        '''把数据弹栈到以下内存段:local,argument,this,that'''
+        # 弹栈需要：A寄存器指向栈顶元素地址
+        # 写入需要：A寄存器指向写入地址,D寄存器放数据
+        # 计算地址需要：A寄存器放基地址，D寄存器放偏移
+        # 因此两步操作都使用了AD寄存器，无法直接弹栈到D再写到M
+        reg = CodeWriter.__vmSegmentReg[segment]
+        self.__asmCmd('@'+reg)
+        self.__asmCmd('D=M')
+        self.__asmCmd('@'+str(index))
+        self.__asmCmd('D=D+A') # D指向写入地址
+        self.__asmCmd('@R13')
+        self.__asmCmd('M=D') # 先把写入地址放到R13寄存器中
+
+        self.__vmStackPopToD()
+        self.__asmCmd('@R13')
+        self.__asmCmd('A=M') # A指向写入地址
+        self.__asmCmd('M=D')
+
+    def __vmStackPushFromPointer(self,segment,index):
+        '''从以下内存段取数据压栈:pointer,temp'''
+        addr = ''
+        if segment == 'pointer':
+            addr = 'R'+str(3+index)
+        elif segment == 'temp':
+            addr = 'R'+str(5+index)
+        else:
+            raise Exception('未识别的vm内存段:{1}'.format(segment))
+        
+        self.__asmCmd('@'+addr)
+        self.__asmCmd('D=M')
+        self.__vmStackPushFromD()
+
+    def __vmStackPopToPointer(self,segment,index):
+        '''把数据弹栈到以下内存段:pointer,temp'''
+        addr = ''
+        if segment == 'pointer':
+            addr = 'R'+str(3+index)
+        elif segment == 'temp':
+            addr = 'R'+str(5+index)
+        else:
+            raise Exception('未识别的vm内存段:{1}'.format(segment))
+
+        self.__vmStackPopToD()
+        self.__asmCmd('@'+addr)
+        self.__asmCmd('M=D')
+
+    def __vmStackPushFromStatic(self,index):
+        '''从以下内存段取数据压栈:static'''
+        addr = self._currVMName+'.'+str(index)
+        self.__asmCmd('@'+addr)
+        self.__asmCmd('D=M')
+        self.__vmStackPushFromD()
+
+    def __vmStackPopToStatic(self,index):
+        '''把数据弹栈到以下内存段:static'''
+        addr = self._currVMName+'.'+str(index)
+        self.__vmStackPopToD()
+        self.__asmCmd('@'+addr)
+        self.__asmCmd('M=D')
 
     def __asmCmd(self,cmd,comment=None):
         '''写入一条指令，可以传入comment字段，将在当前行添加注释'''
