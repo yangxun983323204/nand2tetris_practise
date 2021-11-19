@@ -1,5 +1,6 @@
-// file:ProgramFlow\BasicLoop\BasicLoop.vm
-// vm cmd:push constant 0
+// file:FunctionCalls\SimpleFunction\SimpleFunction.vm
+// vm cmd:funcion SimpleFunction.test 2
+(SimpleFunction.test)
 @0
 D=A
 @SP                                // [begin]:push D to stack
@@ -7,24 +8,15 @@ A=M
 M=D
 @SP
 M=M+1                              // [end]:push D to stack
-// vm cmd:pop local 0
-@LCL
-D=M
 @0
-D=D+A
-@R13
-M=D
-@SP                                // [begin]:pop stack to D
-M=M-1
-A=M
-D=M                                // [end]:pop stack to D
-@R13
+D=A
+@SP                                // [begin]:push D to stack
 A=M
 M=D
-// vm cmd:label LOOP_START
-(global$LOOP_START)
-// vm cmd:push argument 0
-@ARG
+@SP
+M=M+1                              // [end]:push D to stack
+// vm cmd:push local 0
+@LCL
 D=M
 @0
 A=D+A
@@ -34,8 +26,46 @@ A=M
 M=D
 @SP
 M=M+1                              // [end]:push D to stack
-// vm cmd:push local 0
+// vm cmd:push local 1
 @LCL
+D=M
+@1
+A=D+A
+D=M
+@SP                                // [begin]:push D to stack
+A=M
+M=D
+@SP
+M=M+1                              // [end]:push D to stack
+// vm cmd:add
+@SP                                // [begin]:pop stack to D
+M=M-1
+A=M
+D=M                                // [end]:pop stack to D
+@SP
+A=M
+A=A-1
+D=D+M                              // add
+@SP
+M=M-1
+@SP                                // [begin]:push D to stack
+A=M
+M=D
+@SP
+M=M+1                              // [end]:push D to stack
+// vm cmd:not
+@SP                                // [begin]:pop stack to D
+M=M-1
+A=M
+D=M                                // [end]:pop stack to D
+D=!D                               // not
+@SP                                // [begin]:push D to stack
+A=M
+M=D
+@SP
+M=M+1                              // [end]:push D to stack
+// vm cmd:push argument 0
+@ARG
 D=M
 @0
 A=D+A
@@ -61,34 +91,12 @@ A=M
 M=D
 @SP
 M=M+1                              // [end]:push D to stack
-// vm cmd:pop local 0
-@LCL
-D=M
-@0
-D=D+A
-@R13
-M=D
-@SP                                // [begin]:pop stack to D
-M=M-1
-A=M
-D=M                                // [end]:pop stack to D
-@R13
-A=M
-M=D
-// vm cmd:push argument 0
+// vm cmd:push argument 1
 @ARG
 D=M
-@0
+@1
 A=D+A
 D=M
-@SP                                // [begin]:push D to stack
-A=M
-M=D
-@SP
-M=M+1                              // [end]:push D to stack
-// vm cmd:push constant 1
-@1
-D=A
 @SP                                // [begin]:push D to stack
 A=M
 M=D
@@ -110,46 +118,61 @@ A=M
 M=D
 @SP
 M=M+1                              // [end]:push D to stack
-// vm cmd:pop argument 0
-@ARG
-D=M
-@0
-D=D+A
-@R13
-M=D
-@SP                                // [begin]:pop stack to D
-M=M-1
-A=M
-D=M                                // [end]:pop stack to D
-@R13
-A=M
-M=D
-// vm cmd:push argument 0
-@ARG
-D=M
-@0
-A=D+A
-D=M
-@SP                                // [begin]:push D to stack
-A=M
-M=D
-@SP
-M=M+1                              // [end]:push D to stack
-// vm cmd:if-goto LOOP_START
-@SP                                // [begin]:pop stack to D
-M=M-1
-A=M
-D=M                                // [end]:pop stack to D
-@global$LOOP_START
-D;JNE
-// vm cmd:push local 0
+// vm cmd:return
 @LCL
 D=M
-@0
-A=D+A
+@R13
+M=D
+@5
+D=D-A
+A=D
 D=M
-@SP                                // [begin]:push D to stack
+@R14
+M=D
+@SP                                // [begin]:pop stack to D
+M=M-1
+A=M
+D=M                                // [end]:pop stack to D
+@ARG
 A=M
 M=D
+@ARG
+D=M
+D=D+1
 @SP
-M=M+1                              // [end]:push D to stack
+M=D
+@R13
+D=M
+@R13
+M=D-1
+A=M
+D=M
+@THAT
+M=D
+@R13
+D=M
+@R13
+M=D-1
+A=M
+D=M
+@THIS
+M=D
+@R13
+D=M
+@R13
+M=D-1
+A=M
+D=M
+@ARG
+M=D
+@R13
+D=M
+@R13
+M=D-1
+A=M
+D=M
+@LCL
+M=D
+@R14
+A=M
+0;JMP

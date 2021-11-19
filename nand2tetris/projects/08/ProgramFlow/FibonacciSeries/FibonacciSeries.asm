@@ -111,7 +111,7 @@ D=M                                // [end]:pop stack to D
 A=M
 M=D
 // vm cmd:label MAIN_LOOP_START
-(MAIN_LOOP_START)
+(global$MAIN_LOOP_START)
 // vm cmd:push argument 0
 @ARG
 D=M
@@ -128,13 +128,13 @@ M=M+1                              // [end]:push D to stack
 M=M-1
 A=M
 D=M                                // [end]:pop stack to D
-@COMPUTE_ELEMENT
+@global$COMPUTE_ELEMENT
 D;JNE
 // vm cmd:goto END_PROGRAM
-@END_PROGRAM
+@global$END_PROGRAM
 0;JMP
 // vm cmd:label COMPUTE_ELEMENT
-(COMPUTE_ELEMENT)
+(global$COMPUTE_ELEMENT)
 // vm cmd:push that 0
 @THAT
 D=M
@@ -276,7 +276,7 @@ D=M                                // [end]:pop stack to D
 A=M
 M=D
 // vm cmd:goto MAIN_LOOP_START
-@MAIN_LOOP_START
+@global$MAIN_LOOP_START
 0;JMP
 // vm cmd:label END_PROGRAM
-(END_PROGRAM)
+(global$END_PROGRAM)

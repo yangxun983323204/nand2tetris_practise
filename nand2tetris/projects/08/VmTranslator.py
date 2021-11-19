@@ -105,9 +105,11 @@ class CodeWriter():
         self._asm = []                  # 存放生成的每一条汇编指令
         self._currVMFileName = ''       # 当前正在汇编的vm文件名字
         self._currVMCmdCnt=0            # 当前所处的vm指令条数
-        self._currVMFuncName = ''       # 当前所处的vm function名字
+        self._currVMFuncName = 'global' # 当前函数名
         self._currAsmCmdCnt = 0         # 当前生成的asm指令条数
         self._hasSysInit = False        # 是否检测到Sys.Init函数
+        self._initBegin = 0             # Init指令起始索引
+        self._initEnd = 0               # Init指令终止索引
 
     def setFileName(self,filename):
         self._currVMFileName = Path(filename).stem
@@ -115,10 +117,15 @@ class CodeWriter():
 
     def writeInit(self):
         '''生成vm初始化的汇编代码'''
-        if self._hasSysInit:
-            raise Exception('todo')
-        else:
-            print('警告：未发现Sys.init函数，将不会生成引导程序')
+        self._initBegin = len(self._asm)
+        self.__asmComment("====Init begin====")
+        self.__asmCmd('@256')
+        self.__asmCmd('D=A')
+        self.__asmCmd('@SP')
+        self.__asmCmd('M=D')
+        self.writeCall('Sys.init',0)
+        self.__asmComment("====Init end====")
+        self._initEnd = len(self._asm)
 
     def writeArithmetic(self,command):
         # add,sub,eq,gt,lt,and,or 是出栈两个操作数,一个到D、另一个使用M，并在操作完成后出栈
@@ -192,35 +199,152 @@ class CodeWriter():
     def writeLabel(self,label):
         '''vm label'''
         self.__asmComment("vm cmd:label "+label)
-        self.__asmLabel(label)
+        self.__asmScopeLabel(label)
 
     def writeGoto(self,label):
         '''vm goto'''
         self.__asmComment("vm cmd:goto "+label)
-        self.__asmCmd('@'+self.__asmGetLabel(label))
+        self.__asmCmd('@'+self.__asmGetScopeLabel(label))
         self.__asmCmd('0;JMP')
 
     def writeIf(self,label):
         '''vm if-goto'''
         self.__asmComment("vm cmd:if-goto "+label)
         self.__vmStackPopToD()
-        self.__asmCmd('@'+self.__asmGetLabel(label))
+        self.__asmCmd('@'+self.__asmGetScopeLabel(label))
         self.__asmCmd('D;JNE')
         pass
 
     def writeCall(self,functionName,numArgs):
         '''vm call'''
-        raise Exception('todo')
+        if numArgs<0:
+            raise Exception('第{0}个vm指令:call {1} {2}，numArgs小于0'.format(self._currVMCmdCnt,functionName,numArgs))
+
+        self.__asmComment("vm cmd:call {0} {1}".format(functionName,numArgs))
+        # vm call命令是不包含参数压栈的，参数压栈在高级语言编译成vm语言时产生
+        # 保存返回地址和vm寄存器状态
+        returnLabel = '{0}_CALL_{1}_RETURN'.format(self._currVMFuncName,functionName)
+        returnRefStub = self.__asmAutoLabelRefStub(returnLabel) # 返回处的自动标签行号难得数，用stub去延迟生成吧
+        self.__asmCmd('D=A')
+        self.__vmStackPushFromD()
+        self.__asmCmd('@LCL')
+        self.__asmCmd('D=M')
+        self.__vmStackPushFromD()
+        self.__asmCmd('@ARG')
+        self.__asmCmd('D=M')
+        self.__vmStackPushFromD()
+        self.__asmCmd('@THIS')
+        self.__asmCmd('D=M')
+        self.__vmStackPushFromD()
+        self.__asmCmd('@THAT')
+        self.__asmCmd('D=M')
+        self.__vmStackPushFromD()
+        # 设置新的ARG段地址
+        self.__asmCmd('@SP')
+        self.__asmCmd('D=M')
+        if numArgs > 0:
+            self.__asmCmd('@'+str(numArgs))
+            self.__asmCmd('D=D-A')
+
+        self.__asmCmd('@5')
+        self.__asmCmd('D=D-A')
+        self.__asmCmd('@ARG')
+        self.__asmCmd('M=D')
+        # 设置新的LCL段地址
+        self.__asmCmd('@SP')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@LCL')
+        self.__asmCmd('M=D')
+        # 跳转到被调函数
+        self.__asmCmd('@'+functionName)
+        self.__asmCmd('0;JMP')
+        # 声明返回地址
+        self.__asmAutoLabel(returnLabel)
+        returnRefStub.Complete()
 
     def writeReturn(self):
         '''vm return'''
-        raise Exception('todo')
+        self.__asmComment("vm cmd:return")
+        # FRAME = LCL   FRAME地址暂存在R13
+        self.__asmCmd('@LCL')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@R13')
+        self.__asmCmd('M=D')
+        # RET = *(FRAME-5)  RET地址暂存在R14
+        self.__asmCmd('@5')
+        self.__asmCmd('D=D-A')
+        self.__asmCmd('A=D')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@R14')
+        self.__asmCmd('M=D')
+        # *ARG=pop()   当前栈顶是被调函数返回值，*ARG是被调函数帧清栈后的栈顶地址，**ARG是栈顶元素
+        self.__vmStackPopToD()
+        self.__asmCmd('@ARG')
+        self.__asmCmd('A=M')
+        self.__asmCmd('M=D')
+        # SP = ARG+1  被调函数帧清栈
+        self.__asmCmd('@ARG')
+        self.__asmCmd('D=M')
+        self.__asmCmd('D=D+1')
+        self.__asmCmd('@SP')
+        self.__asmCmd('M=D')
+        # 恢复vm寄存器
+        self.__asmCmd('@R13')   
+        self.__asmCmd('D=M')    # D = FRAME
+        self.__asmCmd('@R13')   
+        self.__asmCmd('M=D-1')  # FRAME = FRAME-1
+        self.__asmCmd('A=M')
+        self.__asmCmd('D=M')    # D=&FRAME
+        self.__asmCmd('@THAT')  # THAT
+        self.__asmCmd('M=D')
+
+        self.__asmCmd('@R13')   
+        self.__asmCmd('D=M')
+        self.__asmCmd('@R13')   
+        self.__asmCmd('M=D-1')
+        self.__asmCmd('A=M')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@THIS')  # THIS
+        self.__asmCmd('M=D')
+
+        self.__asmCmd('@R13')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@R13')
+        self.__asmCmd('M=D-1')
+        self.__asmCmd('A=M')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@ARG')  # ARG
+        self.__asmCmd('M=D')
+
+        self.__asmCmd('@R13')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@R13')
+        self.__asmCmd('M=D-1')
+        self.__asmCmd('A=M')
+        self.__asmCmd('D=M')
+        self.__asmCmd('@LCL')  # LCL
+        self.__asmCmd('M=D')
+        # 返回调用函数
+        self.__asmCmd('@R14')
+        self.__asmCmd('A=M')
+        self.__asmCmd('0;JMP')
 
     def writeFunction(self,functionName,numLocals):
         '''vm function'''
-        raise Exception('todo')
+        if functionName == 'Sys.init':
+            self._hasSysInit = True
+
+        self.__asmComment("vm cmd:funcion {0} {1}".format(functionName,numLocals))
+        self.__asmLabel(functionName)
+        self._currVMFuncName = functionName
+        for i in range(numLocals):
+            self.__vmStackPushFromConstant(0) # 分配局部变量
 
     def close(self):
+        if not self._hasSysInit:
+            del(self._asm[self._initBegin:self._initEnd])
+            print('警告：未发现Sys.init函数，将不会生成引导程序')
+
         self.__flush()
         self._file.close()
 
@@ -360,26 +484,43 @@ class CodeWriter():
         if comment!=None:
             self.__asmInlineComment(comment)
 
+    class AutoLabelRefStub:
+        def __init__(self,writer,arrayIdx,label):
+            '''为了方便计算自动标签中添加的行号，这个类用来对_asm某个自动标签引用的延迟确定'''
+            self._writer = writer
+            self._arrayIdx = arrayIdx
+            self._label = label
+
+        def Complete(self):
+            '''完成对自动标签引用的确定'''
+            self._writer._asm[self._arrayIdx] = '@LABEL_AUTO_{0}_{1}'.format(self._label, self._writer._currAsmCmdCnt)
+
     def __asmAutoLabel(self,name):
         '''写入一条自动标签，自动标签后面带有指令行数，以避免重复'''
         self._asm.append('(LABEL_AUTO_{0}_{1})'.format(name,self._currAsmCmdCnt))
+
+    def __asmAutoLabelRefStub(self,name):
+        '''引用一条自动标签，返回AutoLabelStub，需要在后续声明自动标签处调用Complete方法以完成'''
+        self.__asmCmd('stub:@LABEL_AUTO_{0} (将在stub Complete时完成此行的替换)'.format(name))
+        stub = CodeWriter.AutoLabelRefStub(self,len(self._asm)-1,name)
+        return stub
 
     def __asmGetAutoLabel(self,name,offset):
         '''获取自动标签，offset用来指定相对当前指令的偏移'''
         return 'LABEL_AUTO_{0}_{1}'.format(name,self._currAsmCmdCnt+offset)
 
     def __asmLabel(self,label):
+        '''写入一条标签'''
+        self._asm.append('({0})'.format(label))
+
+    def __asmScopeLabel(self,label):
         '''写入一条标签，标签会考虑当前所处的function'''
-        fullLabel = self.__asmGetLabel(label)
+        fullLabel = self.__asmGetScopeLabel(label)
         self._asm.append('({0})'.format(fullLabel))
     
-    def __asmGetLabel(self,label):
+    def __asmGetScopeLabel(self,label):
         '''生成一条标签，标签会考虑当前所处的function'''
-        if self._currVMFuncName == '':
-            fullLabel = label
-        else:
-            fullLabel = self._currVMFuncName + "$" + label
-        
+        fullLabel = self._currVMFuncName + "$" + label
         return fullLabel
 
     def __asmComment(self,text):
@@ -419,6 +560,7 @@ def main():
 
     print('输出文件为:{0}'.format(outputPath))
     writer = CodeWriter(outputPath)
+    writer.writeInit()
     for file in fileList:
         print("待处理文件:"+file)
         writer.setFileName(file)
@@ -443,7 +585,6 @@ def main():
             elif t == Parser.C_FUNCTION:
                 writer.writeFunction(parser.arg1(),parser.arg2())
 
-    writer.writeInit()#解析完所有文件后才知道入口函数在哪，因此最后生成引导程序
     writer.close()
 
 main()
