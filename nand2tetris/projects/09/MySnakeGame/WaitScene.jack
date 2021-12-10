@@ -1,0 +1,43 @@
+class WaitScene{
+    field SnakeGame _game;
+
+    constructor WaitScene new(SnakeGame game){
+        let _game = game;
+        return this;
+    }
+
+    method void OnEnter(){
+        do Screen.clearScreen();
+        do Output.moveCursor(0,0);
+        do Output.printString("Snake");
+        do Output.println();
+        do Output.printString("press Enter to start");
+        do Output.println();
+        do Output.printString("press Esc to exit");
+
+        return;
+    }
+
+    method void OnExit(){
+        return;
+    }
+
+    method void OnUpdate(){
+        var char key;
+        let key = Keyboard.keyPressed();
+        if(key=128){// Enter 开始游戏
+            do _game.GameStart();
+        }
+
+        if(key = 140){// Esc 退出游戏
+            do _game.Quit();
+        }
+
+        return;
+    }
+
+    method void Dispose(){
+        do Memory.deAlloc(this);
+        return;
+    }
+}

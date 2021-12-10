@@ -1,0 +1,155 @@
+function SnakeGame.GetFrameTime 0
+push constant 200
+return
+function SnakeGame.new 0
+push constant 4
+call Memory.alloc 1
+pop pointer 0
+push constant 1
+neg
+pop this 3
+push pointer 0
+call WaitScene.new 1
+pop this 0
+push pointer 0
+call GameScene.new 1
+pop this 1
+push pointer 0
+call ScoreScene.new 1
+pop this 2
+push pointer 0
+push constant 0
+call SnakeGame.GameReady 2
+pop temp 0
+push pointer 0
+return
+function SnakeGame.Run 0
+push argument 0
+pop pointer 0
+label WHILE_EXP0
+push this 3
+push constant 0
+gt
+push this 3
+push constant 0
+eq
+or
+not
+if-goto WHILE_END0
+push this 3
+push constant 0
+eq
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 0
+call WaitScene.OnUpdate 1
+pop temp 0
+label IF_FALSE0
+push this 3
+push constant 1
+eq
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push this 1
+call GameScene.OnUpdate 1
+pop temp 0
+label IF_FALSE1
+push this 3
+push constant 2
+eq
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push this 2
+call ScoreScene.OnUpdate 1
+pop temp 0
+label IF_FALSE2
+call SnakeGame.GetFrameTime 0
+call Sys.wait 1
+pop temp 0
+goto WHILE_EXP0
+label WHILE_END0
+push constant 0
+return
+function SnakeGame.GetScore 0
+push argument 0
+pop pointer 0
+push this 1
+call GameScene.GetScore 1
+return
+function SnakeGame.GameReady 0
+push argument 0
+pop pointer 0
+push argument 1
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 2
+call ScoreScene.OnExit 1
+pop temp 0
+label IF_FALSE0
+push this 0
+call WaitScene.OnEnter 1
+pop temp 0
+push constant 0
+pop this 3
+push constant 0
+return
+function SnakeGame.GameStart 0
+push argument 0
+pop pointer 0
+push this 0
+call WaitScene.OnExit 1
+pop temp 0
+push this 1
+call GameScene.OnEnter 1
+pop temp 0
+push constant 1
+pop this 3
+push constant 0
+return
+function SnakeGame.GameOver 0
+push argument 0
+pop pointer 0
+push this 1
+call GameScene.OnExit 1
+pop temp 0
+push this 2
+call ScoreScene.OnEnter 1
+pop temp 0
+push constant 2
+pop this 3
+push constant 0
+return
+function SnakeGame.Quit 0
+push argument 0
+pop pointer 0
+push this 0
+call WaitScene.OnExit 1
+pop temp 0
+push constant 1
+neg
+pop this 3
+push constant 0
+return
+function SnakeGame.Dispose 0
+push argument 0
+pop pointer 0
+call Screen.clearScreen 0
+pop temp 0
+push this 0
+call WaitScene.Dispose 1
+pop temp 0
+push this 1
+call GameScene.Dispose 1
+pop temp 0
+push this 2
+call ScoreScene.Dispose 1
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return

@@ -1,0 +1,85 @@
+// 游戏管理类
+
+class SnakeGame{
+    field WaitScene _waitScene;
+    field GameScene _gameScene;
+    field ScoreScene _scoreScene;
+
+    field int _currScene;
+
+    function int GetFrameTime(){
+        return 200;
+    }
+
+    constructor SnakeGame new(){
+        let _currScene = -1;
+        let _waitScene = WaitScene.new(this);
+        let _gameScene = GameScene.new(this);
+        let _scoreScene = ScoreScene.new(this);
+        do GameReady(false);
+        return this;
+    }
+
+    method void Run(){
+        while((_currScene>0) | (_currScene=0)){
+            if(_currScene = 0){// 开始界面
+                do _waitScene.OnUpdate();
+            }
+
+            if(_currScene = 1){// 游戏界面
+                do _gameScene.OnUpdate();
+            }
+
+            if(_currScene = 2){// 分数结算界面
+                do _scoreScene.OnUpdate();
+            }
+
+            do Sys.wait(SnakeGame.GetFrameTime());
+        }
+
+        return;
+    }
+
+    method int GetScore(){
+        return _gameScene.GetScore();
+    }
+
+    method void GameReady(bool isRestart){
+        if(isRestart){
+            do _scoreScene.OnExit();
+        }
+
+        do _waitScene.OnEnter();
+        let _currScene = 0;
+        return;
+    }
+
+    method void GameStart(){
+        do _waitScene.OnExit();
+        do _gameScene.OnEnter();
+        let _currScene = 1;
+        return;
+    }
+
+    method void GameOver(){
+        do _gameScene.OnExit();
+        do _scoreScene.OnEnter();
+        let _currScene = 2;
+        return;
+    }
+
+    method void Quit(){
+        do _waitScene.OnExit();
+        let _currScene = -1;
+        return;
+    }
+
+    method void Dispose(){
+        do Screen.clearScreen();
+        do _waitScene.Dispose();
+        do _gameScene.Dispose();
+        do _scoreScene.Dispose();
+        do Memory.deAlloc(this);
+        return;
+    }
+}

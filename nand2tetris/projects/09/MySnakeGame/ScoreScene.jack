@@ -1,0 +1,38 @@
+class ScoreScene{
+    field SnakeGame _game;
+    constructor ScoreScene new(SnakeGame game){
+        let _game = game;
+        return this;
+    }
+
+    method void OnEnter(){
+        do Screen.clearScreen();
+        do Output.moveCursor(0,0);
+        do Output.printString("Game Over");
+        do Output.println();
+        do Output.printString("score:");
+        do Output.printInt(_game.GetScore());
+        do Output.println();
+        do Output.printString("press Enter to back");
+        return;
+    }
+
+    method void OnExit(){
+        return;
+    }
+
+    method void OnUpdate(){
+        var char key;
+        let key = Keyboard.keyPressed();
+        if(key=128){// Enter 开始游戏
+            do _game.GameReady(true);
+        }
+
+        return;
+    }
+
+    method void Dispose(){
+        do Memory.deAlloc(this);
+        return;
+    }
+}
