@@ -105,4 +105,4 @@ pop segment index指令的翻译，当segment是基地址加偏移类型时，�
 第九章没有规定完成内容，自选一个题目实现以熟悉书中的jack语言就好，我选择实现贪吃蛇。  
 另外vscode也有jack的语法高亮，可以装一个。  
 完成一个简单版的：  
-<video src="./img/09_snake.mp4" width="512px" height="256px" controls="controls"></video>
+[![Watch the video](./img/09_snake.png)](./img/09_snake.mp4)
