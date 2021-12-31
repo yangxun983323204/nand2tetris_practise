@@ -89,7 +89,9 @@ class JackTokenizer:
         '''跳过空格符、换行符、注释'''
         state = self.SkipState.none
         skipChar = [' ','\n','\r','\t']
-        comment2 = ['*','/']
+        c0 = '*'
+        c1 = '/'
+
         while True:
             pos = self._file.tell()# 记录操作前位置
             if state == self.SkipState.none:
@@ -99,7 +101,7 @@ class JackTokenizer:
                 
                 if c in skipChar:# 空白字符
                     pass
-                elif c == '/':# 尝试开始注释
+                elif c == c1:# 尝试开始注释
                     state = self.SkipState.commentTryBegin
                 else:
                     # 是有效字符，结束跳过
@@ -112,9 +114,9 @@ class JackTokenizer:
                     self.__close()
                     raise self.__error('未形成有效的注释开始:/' + c)
 
-                if c == comment2[0]:# /**/型注释
+                if c == c0:# /**/型注释
                     state = self.SkipState.comment
-                elif c == comment2[1]:# //型整行注释
+                elif c == c1:# //型整行注释
                     state = self.SkipState.lineComment
                 else:
                     self.__close()
@@ -126,7 +128,7 @@ class JackTokenizer:
                     self.__close()
                     raise self.__error('在多行注释中遇到文件结尾')
 
-                if c == comment2[0]:
+                if c == c0:
                     state = self.SkipState.commentTryEnd
 
             elif state == self.SkipState.commentTryEnd:
@@ -135,9 +137,9 @@ class JackTokenizer:
                     self.__close()
                     raise self.__error('在多行注释中遇到文件结尾')
 
-                if c == comment2[0]:
+                if c == c0:
                     state = self.SkipState.commentTryEnd
-                if c == comment2[1]:
+                if c == c1:
                     state = self.SkipState.none
                 else:
                     state = self.SkipState.comment # *符号后不是*或/，回到/**/注释状态
