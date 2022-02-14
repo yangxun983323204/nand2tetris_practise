@@ -50,19 +50,19 @@ class JackTokenizer:
 
     def __init__(self,filePath:str) -> None:
         self._path = filePath
-        f = open(filePath,mode='r',encoding='utf-8')
-        # file.tell()在windows下unix换行符时存在bug，可能会返回异常的数值，因此必须手动记录当前位置了
-        # 同时发现file.seek也会有问题，因此只能用string来做了
-        self._file = f.readlines()
-        self._fileLen = len(self._file)
-        self._readPos = 0
+        with open(filePath,mode='r',encoding='utf-8') as f:
+            # file.tell()在windows下unix换行符时存在bug，可能会返回异常的数值，因此必须手动记录当前位置了
+            # 同时发现file.seek也会有问题，因此只能用string来做了
+            self._file = f.read()
+            self._fileLen = len(self._file)
+            self._readPos = 0
 
     def hasMoreTokens(self) -> bool:
         if self._file == None:
             return False
         
         self.__skipCommentAndWhite()
-        s = self._file.tell() >= self._fileLen
+        s = self._readPos >= self._fileLen
         if s:
             self.__close()
 
@@ -147,7 +147,6 @@ class JackTokenizer:
                     continue
                 else:
                     # 是有效字符，结束跳过
-                    print(c+"是有效字符")
                     skipStr = skipStr[:-1]
                     self.__fileBack(1)
                     break
@@ -203,9 +202,9 @@ class JackTokenizer:
                     continue
 
             elif state == self.SkipState.lineComment:
-                line = self.__fileReadLine()
-                skipStr += line
-                state = self.SkipState.none
+                skipStr += c
+                if c == '\n':
+                    state = self.SkipState.none
                 continue
 
             else:
@@ -213,8 +212,8 @@ class JackTokenizer:
                 raise self.__error('未识别的跳过状态:' + str(state))
         
         s = self._readPos != prei
-        if s:
-            print("跳过:[{0}]".format(skipStr))
+        #if s:
+            #print("跳过:[{0}]".format(skipStr))
         return s
 
     def __readNextToken(self) -> string:
@@ -256,18 +255,9 @@ class JackTokenizer:
         if self._readPos >= self._fileLen:
             return ''
 
-        self._readPos += 1
         s = self._file[self._readPos]
+        self._readPos += 1
         return s
-
-    def __fileReadLine(self) -> string:
-        if self._readPos >= self._fileLen:
-            return ''
-        
-        # todo readline from string
-        l = self._file.readline()
-        self._readPos += len(l)
-        return l
 
     def __fileBack(self,cnt:string) -> None:
         self._readPos -= cnt
@@ -277,7 +267,6 @@ class JackTokenizer:
 
     def __close(self):
         if self._file!=None:
-            self._file.close()
             self._file = None
 
             
