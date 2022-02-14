@@ -1,9 +1,6 @@
 # coding=utf-8
 
-from base64 import decodebytes
-from distutils.debug import DEBUG
 import re
-import string
 import sys
 import os
 from pathlib import Path
@@ -94,13 +91,13 @@ class JackTokenizer:
         else:
             raise self.__error("当前字元类型不是KEYWORDS而是" + self._type.name)
 
-    def symbol(self) -> string:
+    def symbol(self) -> str:
         if self._type == TokenType.SYMBOL:
             return self._token
         else:
             raise self.__error("当前字元类型不是SYMBOL而是" + self._type.name)
 
-    def identifier(self) -> string:
+    def identifier(self) -> str:
         if self._type == TokenType.IDENTIFIER:
             return self._token
         else:
@@ -112,7 +109,7 @@ class JackTokenizer:
         else:
             raise self.__error("当前字元类型不是INT_CONST而是" + self._type.name)
 
-    def stringVal(self) -> string:
+    def stringVal(self) -> str:
         if self._type == TokenType.STRING_CONST:
             return self._token
         else:
@@ -216,7 +213,7 @@ class JackTokenizer:
             #print("跳过:[{0}]".format(skipStr))
         return s
 
-    def __readNextToken(self) -> string:
+    def __readNextToken(self) -> str:
         '''读取下一个字元'''
         self.__skipCommentAndWhite()
         self._token = self.__fileReadOne()
@@ -251,7 +248,7 @@ class JackTokenizer:
 
         return self._token
 
-    def __fileReadOne(self) -> string:
+    def __fileReadOne(self) -> str:
         if self._readPos >= self._fileLen:
             return ''
 
@@ -259,10 +256,10 @@ class JackTokenizer:
         self._readPos += 1
         return s
 
-    def __fileBack(self,cnt:string) -> None:
+    def __fileBack(self,cnt:str) -> None:
         self._readPos -= cnt
 
-    def __error(self,msg:string) -> Exception:
+    def __error(self,msg:str) -> Exception:
         return Exception("{0} 在{1}的第{2}个字符".format(msg,self._path,self._readPos))
 
     def __close(self):
