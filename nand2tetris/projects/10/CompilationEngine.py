@@ -1,8 +1,11 @@
 # coding=utf-8
 
+from subprocess import call
 import sys
 import os
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
+
+from cv2 import RETR_CCOMP
 from JackTokenizer import *
 
 class CompilationToken:
@@ -26,6 +29,7 @@ class SyntaxClassNode(SyntaxNode):
     '''类'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "class"
         self.Name = ''
         self.VarDecList:List[SyntaxClassVarDecNode] = []
         self.SubroutineDecList:List[SyntaxSubroutineDecNode] = []
@@ -34,6 +38,7 @@ class SyntaxClassVarDecNode(SyntaxNode):
     '''类变量声明'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "classVarDec"
         self.Permission:str = '' # static|field
         self.TypeType:str = ''
         self.Type:str = ''
@@ -43,24 +48,34 @@ class SyntaxSubroutineDecNode(SyntaxNode):
     '''方法声明'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "subroutineDec"
         self.Permission:str = '' # constructor|function|method
         self.ReturnTypeType:str = ''
         self.ReturnType:str = ''
         self.Name:str = ''
         self.ParameterList:SyntaxParameterListNode = None
-        self.LocalVarDecList:List[SyntaxVarDecNode] = []
-        self.Statements:SyntaxStatementsNode = None
+        self.Body:SyntaxSubroutineBodyNode = None
 
 class SyntaxParameterListNode(SyntaxNode):
     '''参数列表'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "parameterList"
         self.ParameterList:List[Tuple[str,str,str]] = []
+
+class SyntaxSubroutineBodyNode(SyntaxNode):
+    '''方法体'''
+    def __init__(self) -> None:
+        super().__init__()
+        self.NodeName = "subroutineBody"
+        self.LocalVarDecList:List[SyntaxVarDecNode] = []
+        self.Statements:SyntaxStatementsNode = None
 
 class SyntaxVarDecNode(SyntaxNode):
     '''变量声明'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "varDec"
         self.TypeType:str = ''
         self.Type:str = ''
         self.VarList:List[str] = []
@@ -69,12 +84,15 @@ class SyntaxStatementsNode(SyntaxNode):
     '''一系列语句'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "statements"
         self.StatementList:List[SyntaxNode] = []
 
 class SyntaxDoNode(SyntaxNode):
     '''do语句'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "doStatement"
+        # SubroutineCall
         self.HasTarget:bool = False
         self.TargetName:str = ''
         self.FuncName:str = ''
@@ -84,6 +102,7 @@ class SyntaxLetNode(SyntaxNode):
     '''let语句'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "letStatement"
         self.HasIndex:bool = False
         self.VarName:str = ''
         self.Index:SyntaxExpressionNode = None
@@ -93,6 +112,7 @@ class SyntaxWhileNode(SyntaxNode):
     '''while语句'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "whileStatement"
         self.Expression:SyntaxExpressionNode = None
         self.Statements:SyntaxStatementsNode = None
 
@@ -100,19 +120,23 @@ class SyntaxReturnNode(SyntaxNode):
     '''return语句'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "returnStatement"
         self.Expression:SyntaxExpressionNode = None
 
 class SyntaxIfNode(SyntaxNode):
     '''if语句'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "ifStatement"
         self.Expression:SyntaxExpressionNode = None
         self.Statements:SyntaxStatementsNode = None
+        self.ElseStatements:SyntaxStatementsNode = None
 
 class SyntaxExpressionNode(SyntaxNode):
     '''表达式'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "expression"
         self.HasOperate:bool = False
         self.Term:SyntaxTermNode = None
         self.OpTermList:List[Tuple[str,SyntaxTermNode]] = []
@@ -128,28 +152,29 @@ class SyntaxTermNode(SyntaxNode):
         VarIdx = 4,
         Call = 5,
         Exp = 6,
-        OpTerm = 7
+        UnaryOpTerm = 7
 
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "term"
         self.Type:SyntaxTermNode.TermType = None
-        self.Symbol:str = ''
-        self.Index:SyntaxExpressionNode = None
+        self.IntVal:int = 0
+        self.StrVal:str = '' # 既可以存stringConst，也可以存identifier
+        self.KeyWordVal:Keyword = None
+        self.ExpVal:SyntaxExpressionNode = None
         # SubroutineCall
         self.HasTarget:bool = False
         self.TargetName:str = ''
         self.FuncName:str = ''
         self.ExpressionList:SyntaxExpressionListNode = None
-        #
-        self.Expression:SyntaxExpressionNode = None
-        #
-        self.UnaryOp:str = ''
+
         self.Term:SyntaxTermNode = None
 
 class SyntaxExpressionListNode(SyntaxNode):
     '''逗号分隔的表达式'''
     def __init__(self) -> None:
         super().__init__()
+        self.NodeName = "expressionList"
         self.ExpressionList:List[SyntaxExpressionNode] = []
 
 #endregion
@@ -225,6 +250,9 @@ class CompilationEngine:
 
     def CompileSubroutine(self) -> SyntaxSubroutineDecNode:
         node = SyntaxSubroutineDecNode()
+        body = SyntaxSubroutineBodyNode()
+        body.Parent = node
+        node.Body = body
 
         n = self.__GetNextToken()
         funcType = n.keyword
@@ -253,14 +281,14 @@ class CompilationEngine:
         n = self.__PeekNextToken()
         while n.tokenType == TokenType.KEYWORD and n.keyword == Keyword.VAR:
             varDec = self.CompileVarDec()
-            varDec.Parent = node
-            node.LocalVarDecList.append(varDec)
+            varDec.Parent = body
+            body.LocalVarDecList.append(varDec)
 
             n = self.__PeekNextToken()
         
         statements = self.CompileStatements()
-        statements.Parent = node
-        node.Statements = statements
+        statements.Parent = body
+        body.Statements = statements
 
         n = self.__GetNextToken()
         self.__checkSymbol(n, '}')
@@ -335,7 +363,7 @@ class CompilationEngine:
                 letNode.Parent = node
                 node.StatementList.append(letNode)
             elif n.keyword == Keyword.IF:
-                ifNode = self.ComileIf()
+                ifNode = self.CompileIf()
                 ifNode.Parent = node
                 node.StatementList.append(ifNode)
             elif n.keyword == Keyword.WHILE:
@@ -355,46 +383,27 @@ class CompilationEngine:
 
     def CompileDo(self) -> SyntaxDoNode:
         node = SyntaxDoNode()
-        parent:SyntaxStatementsNode = self._syntaxCurr
-        node.Parent = parent
-        parent.StatementList.append(node)
 
         isTargetCall:bool=False
         target:str=None
         callName:str
 
         n = self.__GetNextToken()# do
-        n = self.__GetNextToken()# target或callName
-        self.__checkIdentifer(n)
-        # 判断是同内部函数调用还是类函数或对象函数调用
-        t = self.__PeekNextToken()
-        if self.__isSymbol(n,'.'): # 是类函数或对象函数调用
-            isTargetCall = True
-            target = n.identifier
-            n = self.__GetNextToken() # .号
-            n = self.__GetNextToken() # callName
-            self.__checkIdentifer(n)
+        callInfo = self.__CompileSubroutineCall()
 
-        callName = n.identifier
-        n = self.__GetNextToken()
-        self.__checkSymbol(n,'(')
+        node.HasTarget = callInfo.isTargetCall
+        node.TargetName = callInfo.TargetName
+        node.FuncName = callInfo.FuncName
 
-        node.HasTarget = isTargetCall
-        node.TargetName = target
-        node.FuncName = callName
-
-        self._syntaxCurr = node
-        self.CompileExpressionList()
-        self._syntaxCurr = parent
+        callInfo.ExpList = node
+        node.ExpressionList = callInfo.ExpList
 
         n = self.__GetNextToken()
-        self.__checkSymbol(n,')')
+        self.__checkSymbol(n,';')
+        return node
 
     def CompileLet(self) -> SyntaxLetNode:
         node = SyntaxLetNode()
-        parent:SyntaxStatementsNode = self._syntaxCurr
-        node.Parent = parent
-        parent.StatementList.append(node)
 
         varName:str
         hasIdx:bool=False
@@ -413,9 +422,9 @@ class CompilationEngine:
 
             node.HasIndex = hasIdx
 
-            self._syntaxCurr = node
-            self.CompileExpression()  # 下标表达式
-            self._syntaxCurr = parent
+            exp = self.CompileExpression()  # 下标表达式
+            exp.Parent = node
+            node.Index = exp
 
             n = self.__GetNextToken() # ]
             self.__checkSymbol(n,']')
@@ -423,68 +432,221 @@ class CompilationEngine:
         n = self.__GetNextToken()
         self.__checkSymbol(n,'=')
 
-        self._syntaxCurr = node
-        self.CompileExpression()
-        self._syntaxCurr = parent
+        exp = self.CompileExpression()
+        exp.Parent = node
+        node.Expression = exp
         
         n = self.__GetNextToken()
         self.__checkSymbol(n,';')
+        return node
 
     def CompileWhile(self) -> SyntaxWhileNode:
         node = SyntaxWhileNode()
-        parent:SyntaxStatementsNode = self._syntaxCurr
-        node.Parent = parent
-        parent.StatementList.append(node)
 
         n = self.__GetNextToken()
         n = self.__GetNextToken()
         self.__checkSymbol(n,'(')
 
-        self._syntaxCurr = node
-        self.CompileExpression()
-        self._syntaxCurr = parent
+        exp = self.CompileExpression()
+        exp.Parent = node
+        node.Expression = exp
 
         n = self.__GetNextToken()
         self.__checkSymbol(n,')')
         n = self.__GetNextToken()
         self.__checkSymbol(n,'{')
 
-        self._syntaxCurr = node
-        self.CompileStatements()
-        self._syntaxCurr = parent
+        statements = self.CompileStatements()
+        statements.Parent = node
+        node.Statements = statements
 
         n = self.__GetNextToken()
         self.__checkSymbol(n,'}')
+        return node
 
     def CompileReturn(self) -> SyntaxReturnNode:
         node = SyntaxReturnNode()
-        parent:SyntaxStatementsNode = self._syntaxCurr
-        node.Parent = parent
-        parent.StatementList.append(node)
 
         n = self.__GetNextToken()
         n = self.__PeekNextToken()
         if self.__isSymbol(n,';'):  # 无返回值
             n = self.__GetNextToken()
         else:
-            self.CompileExpression()
+            exp = self.CompileExpression()
+            exp.Parent = node
+            node.Expression = exp
+        
+        return node
 
-    def ComileIf(self) -> SyntaxIfNode:
-        pass
+    def CompileIf(self) -> SyntaxIfNode:
+        node = SyntaxIfNode()
+
+        n = self.__GetNextToken()
+        self.__checkKeyword(n,Keyword.IF)
+        n = self.__GetNextToken()
+        self.__checkSymbol(n,'(')
+        exp = self.CompileExpression()
+        exp.Parent = node
+        node.Expression = exp
+        n = self.__GetNextToken()
+        self.__checkSymbol(n,')')
+        n = self.__GetNextToken()
+        self.__checkSymbol(n,'{')
+        statements = self.CompileStatements()
+        statements.Parent = node
+        node.Statements = statements
+        n = self.__GetNextToken()
+        self.__checkSymbol(n,'}')
+        # 判断是否有else部分
+        n = self.__PeekNextToken()
+        if self.__isKeyword(n,Keyword.ELSE):
+            n = self.__GetNextToken()
+            n = self.__GetNextToken()
+            self.__checkSymbol(n,'{')
+            statements = self.CompileStatements()
+            statements.Parent = node
+            node.ElseStatements = statements
+            n = self.__GetNextToken()
+            self.__checkSymbol(n,'}')
+        
+        return node
 
     def CompileExpression(self) -> SyntaxExpressionNode:
-        pass
+        node = SyntaxExpressionNode()
+        op = ['+','-','*','/','&','|','<','>','=']
+
+        term = self.CompileTerm()
+        term.Parent = node
+        node.Term = term
+
+        n = self.__PeekNextToken()
+        while n.tokenType == TokenType.SYMBOL and n.symbol in op:
+            opCode = n.symbol
+            n = self.__GetNextToken()
+            term = self.CompileTerm()
+            term.Parent = node
+            node.HasOperate = True
+            node.OpTermList.append({opCode,term})
+
+            n = self.__PeekNextToken()
+
+        return node
 
     def CompileTerm(self) -> SyntaxTermNode:
-        pass
+        node = SyntaxTermNode()
+        unaryOp = ['-','~']
+        keywordConst = [Keyword.TRUE, Keyword.FALSE, Keyword.NULL, Keyword.THIS]
+
+        p0 = self.__PeekNextToken()
+        p1 = self.__PeekToken(2)
+        if p0.tokenType == TokenType.INT_CONST: # integerConstant
+            n = self.__GetNextToken()
+            node.Type = SyntaxTermNode.TermType.IntConst
+            node.IntVal = n.intVal
+        elif p0.tokenType == TokenType.STRING_CONST: # stringConstant
+            n = self.__GetNextToken()
+            node.Type = SyntaxTermNode.TermType.StrConst
+            node.IntVal = n.stringVal
+        elif p0.tokenType == TokenType.KEYWORD and p0.keyword in keywordConst: # keywordConstant
+            n = self.__GetNextToken()
+            node.Type = SyntaxTermNode.TermType.KeywordConst
+            node.KeyWordVal = n.keyword
+        elif p0.tokenType == TokenType.IDENTIFIER and self.__isSymbol(p1,'['): # varName[expression]
+            n = self.__GetNextToken()
+            node.Type = SyntaxTermNode.TermType.VarIdx
+            node.StrVal = n.identifier
+            n = self.__GetNextToken()
+            self.__checkSymbol(n,'[')
+            idx = self.CompileExpression()
+            idx.Parent = node
+            node.ExpVal = idx
+            n = self.__GetNextToken()
+            self.__checkSymbol(n,']')
+        elif p0.tokenType == TokenType.IDENTIFIER and self.__isSymbol(p1,'('): # subroutineCall
+            callInfo = self.__CompileSubroutineCall()
+            node.Type = SyntaxTermNode.TermType.Call
+            node.HasTarget = callInfo.isTargetCall
+            node.TargetName = callInfo.TargetName
+            node.FuncName = callInfo.FuncName
+            node.ExpressionList = callInfo.ExpList
+        elif p0.tokenType == TokenType.IDENTIFIER: # varName
+            n = self.__GetNextToken()
+            self.__checkIdentifer(n)
+            node.StrVal = n.identifier
+        elif self.__isSymbol(p0,'('): # (expression)
+            n = self.__GetNextToken()
+            self.__checkSymbol(n,'(')
+            exp = self.CompileExpression()
+            exp.Parent = node
+            node.ExpVal = exp
+            n = self.__GetNextToken()
+            self.__checkSymbol(n,')')
+        elif p0.tokenType == TokenType.SYMBOL and p0.symbol in unaryOp: # unaryOp term
+            n = self.__GetNextToken()
+            node.StrVal = n.symbol
+            term = self.CompileTerm()
+            term.Parent = node
+            node.Term = term
+        else:
+            raise self.__error("未识别的term:" + str(p0))
+
+        return node
 
     def CompileExpressionList(self) -> SyntaxExpressionListNode:
-        pass
+        # 注意一个事实：表达式列表只出现在子过程调用的参数列表中
+        # 因此，空列表可通过看当前字符是否是')'来判断，是的话就是空表达式列表
+        node = SyntaxExpressionListNode()
+
+        n = self.__GetNextToken()
+        if n.tokenType == TokenType.SYMBOL and n.symbol == ')': # 空表达式列表
+            pass
+        else:
+            # todo
+            pass
+
+        return node
+    
+    class SubroutineCallInfo:
+        '''SubroutineCall分析'''
+        def __init__(self) -> None:
+            '''SubroutineCall分析'''
+            self.isTargetCall:bool = False
+            self.TargetName:str = None
+            self.FuncName:str = None
+            self.ExpList:SyntaxExpressionListNode = None
+
+    def __CompileSubroutineCall(self) -> SubroutineCallInfo:
+        '''因为do语句和term语句都有subroutineCall语句，因此把解析部分提取出来公用'''
+        info = CompilationEngine.SubroutineCallInfo()
+
+        n = self.__GetNextToken()# target或callName
+        self.__checkIdentifer(n)
+        # 判断是同内部函数调用还是类函数或对象函数调用
+        t = self.__PeekNextToken()
+        if self.__isSymbol(n,'.'): # 是类函数或对象函数调用
+            info.isTargetCall = True
+            info.TargetName = n.identifier
+            n = self.__GetNextToken() # .号
+            n = self.__GetNextToken() # callName
+            self.__checkIdentifer(n)
+
+        info.FuncName = n.identifier
+        n = self.__GetNextToken()
+        self.__checkSymbol(n,'(')
+        info.ExpList = self.CompileExpressionList()
+        n = self.__GetNextToken()
+        self.__checkSymbol(n,')')
+
+        return info
 
     def __GetNextToken(self) -> CompilationToken:
         pass
 
     def __PeekNextToken(self) -> CompilationToken:
+        return self.__PeekToken(1)
+    
+    def __PeekToken(self,idx:int) -> CompilationToken:
+        '''向前查看第idx个'''
         pass
 
     def __OutputXml(self) -> None:
