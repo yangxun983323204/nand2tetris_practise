@@ -8,11 +8,11 @@ from enum import Enum
 import traceback
 
 class TokenType(Enum):
-    KEYWORD = 1
-    SYMBOL = 2
-    IDENTIFIER = 3
-    INT_CONST = 4
-    STRING_CONST = 5
+    KEYWORD = "keyword"
+    SYMBOL = "symbol"
+    IDENTIFIER = "identifier"
+    INT_CONST = "integerConstant"
+    STRING_CONST = "stringConstant"
 
 class Keyword(Enum):
     CLASS = "class"

@@ -35,20 +35,20 @@ def main():
             tokenizer.advance()
             t = tokenizer.tokenType()
             if t == TokenType.KEYWORD:
-                print("KEYWORD:{0}".format(tokenizer.keyword().value))
-                tokenXml.AddNode("keyword",tokenizer.keyword().value)
+                print("{0}:{1}".format(t.value,tokenizer.keyword().value))
+                tokenXml.AddNode(t.value,tokenizer.keyword().value)
             elif t == TokenType.SYMBOL:
-                print("SYMBOL:{0}".format(tokenizer.symbol()))
-                tokenXml.AddNode("symbol",tokenizer.symbol())
+                print("{0}:{1}".format(t.value,tokenizer.symbol()))
+                tokenXml.AddNode(t.value,tokenizer.symbol())
             elif t == TokenType.IDENTIFIER:
-                print("IDENTIFIER:{0}".format(tokenizer.identifier()))
-                tokenXml.AddNode("identifier",tokenizer.identifier())
+                print("{0}:{1}".format(t.value,tokenizer.identifier()))
+                tokenXml.AddNode(t.value,tokenizer.identifier())
             elif t == TokenType.INT_CONST:
-                print("INT_CONST:{0}".format(tokenizer.intVal()))
-                tokenXml.AddNode("integerConstant",str(tokenizer.intVal()))
+                print("{0}:{1}".format(t.value,tokenizer.intVal()))
+                tokenXml.AddNode(t.value,str(tokenizer.intVal()))
             elif t == TokenType.STRING_CONST:
-                print("STRING_CONST:{0}".format(tokenizer.stringVal()))
-                tokenXml.AddNode("stringConstant",tokenizer.stringVal())
+                print("{0}:{1}".format(t.value,tokenizer.stringVal()))
+                tokenXml.AddNode(t.value,tokenizer.stringVal())
             else:
                 print("UNKOWN:{0}".format(str(t)))
         
