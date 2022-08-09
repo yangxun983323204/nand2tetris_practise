@@ -1,12 +1,12 @@
 # coding=utf-8
 
+from array import array
 from subprocess import call
 import sys
 import os
 from typing import Any, Dict, List, Tuple
-
-from cv2 import RETR_CCOMP
 from JackTokenizer import *
+from queue import Queue
 
 class CompilationToken:
     '''每个字元的编译所需信息'''
@@ -17,7 +17,18 @@ class CompilationToken:
         self.identifier = identifier
         self.intVal = intVal
         self.stringVal = stringVal
-        pass
+    
+    def __str__(self) -> str:
+        if self.tokenType == TokenType.KEYWORD:
+            return self.keyword.value
+        elif self.tokenType == TokenType.SYMBOL:
+            return self.symbol
+        elif self.tokenType == TokenType.IDENTIFIER:
+            return self.identifier
+        elif self.tokenType == TokenType.INT_CONST:
+            return str(self.intVal)
+        elif self.tokenType == TokenType.STRING_CONST:
+            return self.stringVal
 
 #region 语法树节点定义
 
@@ -185,6 +196,8 @@ class CompilationEngine:
         self._inPath = inFilePath
         self._outPath = outFilePath
         self._tokenizer = JackTokenizer(inFilePath)
+        self._readBuffer:list[CompilationToken] = []
+        self._readIdx:int = 0
 
     def CompileClass(self) -> SyntaxClassNode:
         node = SyntaxClassNode()
@@ -597,12 +610,19 @@ class CompilationEngine:
         # 因此，空列表可通过看当前字符是否是')'来判断，是的话就是空表达式列表
         node = SyntaxExpressionListNode()
 
-        n = self.__GetNextToken()
-        if n.tokenType == TokenType.SYMBOL and n.symbol == ')': # 空表达式列表
+        n = self.__PeekNextToken()
+        if self.__checkSymbol(n, ')'): # 空表达式列表
             pass
         else:
-            # todo
-            pass
+            while True:
+                node.ExpressionList.append(self.CompileExpression())
+                n = self.__PeekNextToken()
+                if self.__checkSymbol(n, ')'):
+                    break
+                elif not self.__checkSymbol(n, ','):
+                    raise self.__error("表达式列表必须以‘,’分隔，以‘)’结束")
+                else:
+                    self.__GetNextToken() # 是逗号，读取它
 
         return node
     
@@ -640,22 +660,41 @@ class CompilationEngine:
         return info
 
     def __GetNextToken(self) -> CompilationToken:
-        pass
+        self.__EnsureReadBuffer(1)
+        return self._readBuffer.pop(0)
 
     def __PeekNextToken(self) -> CompilationToken:
-        return self.__PeekToken(1)
+        self.__EnsureReadBuffer(1)
+        return self._readBuffer[0]
     
     def __PeekToken(self,idx:int) -> CompilationToken:
         '''向前查看第idx个'''
-        pass
+        self.__EnsureReadBuffer(idx+1)
+        return self._readBuffer[idx]
 
-    def __OutputXml(self) -> None:
-        '''把语法树输出为xml'''
+    def __EnsureReadBuffer(self, cnt:int) -> None:
+        '''保证读取缓冲中有足够的字元'''
+        n = len(self._readBuffer)
+        if n >= cnt:
+            return
+        else:
+            t = cnt - n
+            for i in range(t):
+                if self._tokenizer.hasMoreTokens():
+                    self._tokenizer.advance()
+                    tk = CompilationToken()
+                    self.__FillCurrentToken(tk)
+                    self._readBuffer.append(tk)
+                else:
+                    raise self.__error("期望更多的字元")
+    
+    def __FillCurrentToken(self, token:CompilationToken) -> None:
+        # todo
         pass
 
 #region 辅助方法
     def __error(self,msg:str) -> Exception:
-        return Exception("{0} 在{1}的{2}附近".format(msg,self._inPath,self._readPos))
+        return Exception("{0} 在{1}的{2}附近".format(msg,self._inPath,self._tokenizer._readPos))
 
     def __assert(self,condition:bool,msg:str) ->None:
         if not condition:
