@@ -690,7 +690,17 @@ class CompilationEngine:
     
     def __FillCurrentToken(self, token:CompilationToken) -> None:
         # todo
-        pass
+        t = self._tokenizer.tokenType()
+        if t == TokenType.KEYWORD:
+            pass
+        elif t == TokenType.SYMBOL:
+            pass
+        elif t == TokenType.IDENTIFIER:
+            pass
+        elif t == TokenType.INT_CONST:
+            pass
+        elif t == TokenType.STRING_CONST:
+            pass
 
 #region 辅助方法
     def __error(self,msg:str) -> Exception:
